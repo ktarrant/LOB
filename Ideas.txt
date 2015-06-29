@@ -1,0 +1,9 @@
+IDEAS FOR ANALYSIS:
+
+(1) Start with total LOB on season, with extra columns for R, OB, and LOB/OB
+
+(2) Do the top LOB player for each team
+
+(3) Show the player's who left in scoring position (LISP)
+
+(4) ...
