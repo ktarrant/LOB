@@ -1,6 +1,13 @@
 import re
+import logging
+import play_parse
 
-scoreRe = re.compile("; (.+) Scores")
+log = logging.getLogger(__name__)
+
+bbref_url = "http://www.baseball-reference.com/boxes/2015.shtml"
+
+moveRe = re.compile("([^;]+) to ([1-3]B)")
+scoreRe = re.compile("([^;]+) Scores")
 
 def extractTotals(fobj):
     for line in fobj:
@@ -25,39 +32,34 @@ def extractTotals(fobj):
 
             halfInning += [entry]
 
-    playerTotals = {}
+    parser = play_parse.PlayParser()
     for halfInning in innings:
-        batters = []
-        singles = []
-        runs = []
-        
-
         for entry in innings[halfInning]:
-            # Add the current batter to the player totals and
-            # batters list
-            newBatter = "(" + entry["@Bat"] + ") " + entry["Batter"]
-            batters += [newBatter]
-            if not newBatter in playerTotals:
-                playerTotals[newBatter] = {"1B": 0, "2B": 0, "3B": 0, "R": 0}
+            for i in range(3):
+                if entry["RoB"][i] == "-" and \
+                    parser.baseState[i] != None:
+                    raise Exception("Unexpected baserunner at %dB" % (i + 1))
+                elif entry["RoB"][i] != "-" and \
+                    parser.baseState[i] == None:
+                    raise Exception("Missing a baserunner at %dB" % (i + 1))
 
-            # Check to see if anyone scores on this play.
-            # Note that in the case of the home run, the batter is not considered
-            # a run because he was never on base.
-            matches = scoreRe.findall(entry["Play Description"])
-            bmatch = [batter for batter in batters for match in matches if match in batter]
-            if len(bmatch) != len(matches):
-                raise Exception("Failed to match batter(s) scored: " + str(matches))
-            runs += bmatch
+            # Get an ID for the current batter
+            batter = "(" + entry["@Bat"] + ") " + entry["Batter"]
 
-        for batter in batters:
-            playerTotals[batter]["1B"] = batters.count(batter)
-            playerTotals[batter]["R"] = runs.count(batter)
+            # Get the play description
+            desc = entry["Play Description"]
 
-    return playerTotals
+            # Parse the play
+            parser.parsePlay(desc, batter)
+
+        parser.endInning()
+
+    return parser.playerTotals
 
 
 if __name__ == "__main__":
-    with open("boxes_WAS_WAS201506250_play_by_play.csv") as fobj:
+    with open("boxes_PHI_PHI201506282_play_by_play.csv") as fobj:
+    # with open("boxes_WAS_WAS201506250_play_by_play.csv") as fobj:
         playerTotals = extractTotals(fobj)
         for player in playerTotals:
             print "%-24s : %s" % (player, playerTotals[player])

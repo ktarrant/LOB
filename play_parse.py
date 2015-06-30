@@ -4,6 +4,7 @@ import logging
 log = logging.getLogger(__name__)
 
 moveRe = re.compile("(.+) to ([1-3])B")
+stealRe = re.compile("(.+) Steals ([1-3])B")
 scoreRe = re.compile("(.+) Scores")
 forceoutRe = re.compile("Forceout at ([1-3])B")
 
@@ -17,13 +18,22 @@ PLATE_EVENTS = {
     "Reached on ": 	0,
 }
 
+# What kinds of statistics are we gathering?
+STAT_KEYS = [ base + action \
+	for base in ["1B", "2B", "3B"] \
+	for action in ["K", "R", "O", "L"]]
+
 class PlayParser(object):
 
 	def __init__(self):
+		self.baseState = [ None ] * 3
 		self.playerTotals = {}
-		self.reset()
 
-	def reset(self):
+	def endInning(self):
+		for player in self.baseState:
+			if player != None:
+				self.playerTotals[player][base + "L"] += 1
+
 		self.baseState = [ None ] * 3
 
 	def getPlayerFromMention(self, menu, mention):
@@ -59,8 +69,7 @@ class PlayParser(object):
 		# Add the batter to the tallies if necessary
 		if not batter in self.playerTotals:
 			# Initialize the base totals
-			self.playerTotals[batter] = { key: 0 for key in \
-				["1B", "2B", "3B", "R", "Kob"] }
+			self.playerTotals[batter] = { key: 0 for key in STAT_KEYS }
 
 		# Process each event in the play
 		for event in events:
@@ -76,9 +85,11 @@ class PlayParser(object):
 				# Indicate this play contains a strikeout (special case)
 				isStrikeout = True
 
-			# Check if this is a runner moved event
+			# Check if this is a runner moved event or stolen base event
 			movedMatches = moveRe.findall(event)
-			for (runner, base) in movedMatches:
+			stealMatches = stealRe.findall(event)
+			movedStealMatches = movedMatches + stealMatches
+			for (runner, base) in movedStealMatches:
 				# Find the full ID of the runner
 				player = self.getPlayerFromMention( \
 					[manOnBase for manOnBase in self.baseState if manOnBase != None], \
@@ -99,7 +110,6 @@ class PlayParser(object):
 
 				# Update for the next state
 				nextState[int(base) - 1] = player
-
 
 			# Check if this is a runner scored
 			scoreMatches = scoreRe.findall(event)
@@ -139,13 +149,17 @@ class PlayParser(object):
 
 		# BEFORE WE SET THE STATE TO THE NEXT STATE,
 		# UPDATE THE PLAYER TOTALS WITH ANYTHING THAT HAS HAPPENED
+		for i in range(3):
+			player = self.baseState[i]
+			if player == None: continue
+			base = "%dB" % (i + 1)
 
-		if isStrikeout:
-			for player in self.baseState:
-				if player != None:
-					self.playerTotals[player]["Kob"] += 1
-
-		# TODO: FIGURE OUT 1B/2B/3B ETC.
+			if isStrikeout:
+				self.playerTotals[player][base + "K"] += 1
+			elif player in scoredRunners:
+				self.playerTotals[player][base + "R"] += 1
+			elif player in outedRunners:
+				self.playerTotals[player][base + "O"] += 1
 
 		# Update the base state for next time
 		self.baseState = nextState
