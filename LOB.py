@@ -4,8 +4,6 @@ import play_parse
 
 log = logging.getLogger(__name__)
 
-bbref_url = "http://www.baseball-reference.com/boxes/2015.shtml"
-
 moveRe = re.compile("([^;]+) to ([1-3]B)")
 scoreRe = re.compile("([^;]+) Scores")
 
@@ -58,7 +56,7 @@ def extractTotals(fobj):
 
 
 if __name__ == "__main__":
-    with open("boxes_PHI_PHI201506282_play_by_play.csv") as fobj:
+    with open("WAS201504060.csv") as fobj:
     # with open("boxes_WAS_WAS201506250_play_by_play.csv") as fobj:
         playerTotals = extractTotals(fobj)
         for player in playerTotals:
